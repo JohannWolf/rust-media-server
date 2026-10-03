@@ -2,3 +2,4 @@
 /media
 .env
 media.db
+Cargo.lock
