@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Database: {}", config.database_url);
 
     // Initialize SQLite and run pending migrations.
-    let _pool = init_database(&config.database_url).await?;
+    let pool = init_database(&config.database_url).await?;
 
     println!("Database initialized successfully.");
 
@@ -74,7 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Store the media information in SQLite.
         if let Err(error) = media::upsert_media(
-            &_pool,
+            &pool,
             &metadata,
             &file.to_string_lossy(),
             file_size as i64,
@@ -110,7 +110,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Create the Axum application.
-    let app = create_router();
+    let app = create_router(pool.clone());
 
     let address = format!("{}:{}", config.host, config.port);
 

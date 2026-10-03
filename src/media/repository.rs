@@ -55,3 +55,22 @@ pub async fn upsert_media(
 
     Ok(())
 }
+
+/// Retrieves the filesystem path for a media record.
+pub async fn get_media_path(
+    pool: &SqlitePool,
+    id: i64,
+) -> Result<Option<String>, sqlx::Error> {
+    let result = sqlx::query_scalar::<_, String>(
+        r#"
+        SELECT path
+        FROM media
+        WHERE id = ?
+        "#,
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(result)
+}
