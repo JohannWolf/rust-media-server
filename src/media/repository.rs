@@ -1,4 +1,10 @@
-use sqlx::SqlitePool;
+use sqlx::{FromRow, SqlitePool};
+
+#[derive(Debug, FromRow)]
+pub struct MediaListItem {
+    pub id: i64,
+    pub filename: String,
+}
 
 use crate::metadata::MediaMetadata;
 
@@ -73,4 +79,21 @@ pub async fn get_media_path(
     .await?;
 
     Ok(result)
+}
+
+/// Retrieves the list of available media files.
+pub async fn get_media_list(
+    pool: &SqlitePool,
+) -> Result<Vec<MediaListItem>, sqlx::Error> {
+    let rows = sqlx::query_as::<_, MediaListItem>(
+        r#"
+        SELECT id, filename
+        FROM media
+        ORDER BY filename
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows)
 }
