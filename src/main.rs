@@ -13,6 +13,8 @@ use std::path::Path;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().ok();
+
     println!("Starting Rust Media Server...");
 
     // Load application configuration.
