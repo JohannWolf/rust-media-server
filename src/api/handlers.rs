@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
-    response::{IntoResponse, Json, Response},
+    response::{Json, Response},
 };
 use serde::Serialize;
 use sqlx::SqlitePool;
