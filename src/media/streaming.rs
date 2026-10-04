@@ -251,3 +251,52 @@ fn content_type_for_file(path: &Path) -> &'static str {
         _ => "application/octet-stream",
     }
 }
+
+
+//Testing here for now
+#[cfg(test)]
+mod tests {
+    use super::parse_range;
+
+    #[test]
+    fn parses_explicit_range() {
+        let result = parse_range("bytes=0-999", 10_000);
+
+        assert_eq!(result, Some((0, 999)));
+    }
+
+    #[test]
+    fn parses_range_to_end_of_file() {
+        let result = parse_range("bytes=500-", 10_000);
+
+        assert_eq!(result, Some((500, 9_999)));
+    }
+
+    #[test]
+    fn limits_end_to_file_size() {
+        let result = parse_range("bytes=9000-20000", 10_000);
+
+        assert_eq!(result, Some((9000, 9_999)));
+    }
+
+    #[test]
+    fn rejects_range_starting_after_file() {
+        let result = parse_range("bytes=10000-11000", 10_000);
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn rejects_invalid_range() {
+        let result = parse_range("bytes=900-500", 10_000);
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn rejects_non_byte_range() {
+        let result = parse_range("items=0-999", 10_000);
+
+        assert_eq!(result, None);
+    }
+}

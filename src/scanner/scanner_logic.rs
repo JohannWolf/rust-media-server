@@ -72,3 +72,81 @@ fn is_supported_media_file(path: &Path) -> bool {
 
     SUPPORTED_EXTENSIONS.contains(&extension.as_str())
 }
+
+
+//Test
+#[cfg(test)]
+mod tests {
+    use super::scan_directory;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn finds_supported_media_files() {
+        let directory = tempdir().unwrap();
+
+        fs::write(directory.path().join("movie.mp4"), b"test").unwrap();
+        fs::write(directory.path().join("movie.mkv"), b"test").unwrap();
+        fs::write(directory.path().join("song.mp3"), b"test").unwrap();
+
+        let files = scan_directory(directory.path()).unwrap();
+
+        assert_eq!(files.len(), 3);
+
+        let filenames: Vec<_> = files
+            .iter()
+            .map(|path| path.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+
+        assert!(filenames.contains(&"movie.mp4".to_string()));
+        assert!(filenames.contains(&"movie.mkv".to_string()));
+        assert!(filenames.contains(&"song.mp3".to_string()));
+    }
+
+    #[test]
+    fn ignores_unsupported_files() {
+        let directory = tempdir().unwrap();
+
+        fs::write(directory.path().join("movie.mp4"), b"test").unwrap();
+        fs::write(directory.path().join("document.txt"), b"test").unwrap();
+        fs::write(directory.path().join("image.jpg"), b"test").unwrap();
+
+        let files = scan_directory(directory.path()).unwrap();
+
+        assert_eq!(files.len(), 1);
+
+        assert_eq!(
+            files[0].file_name().unwrap().to_string_lossy(),
+            "movie.mp4"
+        );
+    }
+
+    #[test]
+    fn scans_subdirectories_recursively() {
+        let directory = tempdir().unwrap();
+
+        let movies = directory.path().join("movies");
+        let music = directory.path().join("music");
+
+        fs::create_dir_all(&movies).unwrap();
+        fs::create_dir_all(&music).unwrap();
+
+        fs::write(movies.join("movie.mkv"), b"test").unwrap();
+        fs::write(music.join("song.flac"), b"test").unwrap();
+
+        let files = scan_directory(directory.path()).unwrap();
+
+        assert_eq!(files.len(), 2);
+    }
+    #[test]
+    fn ignores_directories_with_unsupported_extensions() {
+        let directory = tempdir().unwrap();
+
+        let fake_media_directory = directory.path().join("movie.mp4");
+        fs::create_dir_all(&fake_media_directory).unwrap();
+
+        let files = scan_directory(directory.path()).unwrap();
+
+        assert!(files.is_empty());
+    }
+}

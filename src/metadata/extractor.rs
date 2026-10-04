@@ -50,12 +50,6 @@ struct FfprobeStream {
 
 /// Extract metadata from a media file using ffprobe.
 pub fn extract_metadata(path: &Path) -> Result<MediaMetadata, Box<dyn std::error::Error>> {
-    // Run ffprobe as an external process.
-    //
-    // Example command:
-    //
-    // ffprobe -v quiet -print_format json -show_format -show_streams file.mp4
-    //
     let output = Command::new("ffprobe")
         .arg("-v")
         .arg("quiet")
@@ -66,8 +60,6 @@ pub fn extract_metadata(path: &Path) -> Result<MediaMetadata, Box<dyn std::error
         .arg(path)
         .output()?;
 
-    // ffprobe returns a non-zero exit code when it cannot analyze
-    // the file.
     if !output.status.success() {
         let error_message = String::from_utf8_lossy(&output.stderr);
 
@@ -79,13 +71,22 @@ pub fn extract_metadata(path: &Path) -> Result<MediaMetadata, Box<dyn std::error
         .into());
     }
 
-    // Convert ffprobe's stdout from bytes into a String.
     let json = String::from_utf8(output.stdout)?;
 
-    // Deserialize the JSON into our Rust structure.
-    let probe: FfprobeOutput = serde_json::from_str(&json)?;
+    let filename = path
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_default();
 
-    // Determine the media type and extract codec information.
+    parse_ffprobe_output(&json, filename)
+}
+
+fn parse_ffprobe_output(
+    json: &str,
+    filename: String,
+) -> Result<MediaMetadata, Box<dyn std::error::Error>> {
+    let probe: FfprobeOutput = serde_json::from_str(json)?;
+
     let mut media_type = "unknown".to_string();
     let mut video_codec = None;
     let mut audio_codec = None;
@@ -97,56 +98,32 @@ pub fn extract_metadata(path: &Path) -> Result<MediaMetadata, Box<dyn std::error
             match stream.codec_type.as_deref() {
                 Some("video") => {
                     media_type = "video".to_string();
-
                     video_codec = stream.codec_name.clone();
                     width = stream.width;
                     height = stream.height;
                 }
-
                 Some("audio") => {
-                    // If there is no video stream, this is an audio file.
                     if media_type == "unknown" {
                         media_type = "audio".to_string();
                     }
 
                     audio_codec = stream.codec_name.clone();
                 }
-
                 _ => {}
             }
         }
     }
 
-    // ffprobe reports duration as a String.
-    //
-    // Example:
-    //
-    // "3600.123456"
-    //
-    // Convert it into f64 for easier use inside application.
     let duration_seconds = probe
         .format
         .as_ref()
         .and_then(|format| format.duration.as_deref())
         .and_then(|duration| duration.parse::<f64>().ok());
 
-    // Extract the container format.
-    //
-    // ffprobe may return values such as:
-    //
-    // "matroska,webm"
-    // "mov,mp4,m4a,3gp,3g2,mj2"
-    //
     let container = probe
         .format
         .as_ref()
         .and_then(|format| format.format_name.clone());
-
-    // Extract just the filename from the complete path.
-    let filename = path
-        .file_name()
-        .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_default();
 
     Ok(MediaMetadata {
         filename,
@@ -158,4 +135,111 @@ pub fn extract_metadata(path: &Path) -> Result<MediaMetadata, Box<dyn std::error
         width,
         height,
     })
+}
+
+//Test
+#[cfg(test)]
+mod tests {
+    use super::parse_ffprobe_output;
+
+    #[test]
+    fn parses_video_metadata() {
+        let json = r#"
+        {
+            "format": {
+                "format_name": "matroska,webm",
+                "duration": "125.500000"
+            },
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "width": 1920,
+                    "height": 1080
+                },
+                {
+                    "codec_type": "audio",
+                    "codec_name": "aac"
+                }
+            ]
+        }
+        "#;
+
+        let metadata =
+            parse_ffprobe_output(json, "movie.mkv".to_string()).unwrap();
+
+        assert_eq!(metadata.filename, "movie.mkv");
+        assert_eq!(metadata.media_type, "video");
+        assert_eq!(metadata.container.as_deref(), Some("matroska,webm"));
+        assert_eq!(metadata.video_codec.as_deref(), Some("h264"));
+        assert_eq!(metadata.audio_codec.as_deref(), Some("aac"));
+        assert_eq!(metadata.width, Some(1920));
+        assert_eq!(metadata.height, Some(1080));
+        assert_eq!(metadata.duration_seconds, Some(125.5));
+    }
+
+    #[test]
+    fn parses_audio_only_metadata() {
+        let json = r#"
+        {
+            "format": {
+                "format_name": "mp3",
+                "duration": "180.250000"
+            },
+            "streams": [
+                {
+                    "codec_type": "audio",
+                    "codec_name": "mp3"
+                }
+            ]
+        }
+        "#;
+
+        let metadata =
+            parse_ffprobe_output(json, "song.mp3".to_string()).unwrap();
+
+        assert_eq!(metadata.filename, "song.mp3");
+        assert_eq!(metadata.media_type, "audio");
+        assert_eq!(metadata.container.as_deref(), Some("mp3"));
+        assert_eq!(metadata.audio_codec.as_deref(), Some("mp3"));
+        assert_eq!(metadata.video_codec, None);
+        assert_eq!(metadata.width, None);
+        assert_eq!(metadata.height, None);
+        assert_eq!(metadata.duration_seconds, Some(180.25));
+    }
+
+    #[test]
+    fn handles_missing_duration() {
+        let json = r#"
+        {
+            "format": {
+                "format_name": "matroska"
+            },
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "width": 1280,
+                    "height": 720
+                }
+            ]
+        }
+        "#;
+
+        let metadata =
+            parse_ffprobe_output(json, "movie.mkv".to_string()).unwrap();
+
+        assert_eq!(metadata.media_type, "video");
+        assert_eq!(metadata.duration_seconds, None);
+        assert_eq!(metadata.width, Some(1280));
+        assert_eq!(metadata.height, Some(720));
+    }
+
+    #[test]
+    fn rejects_invalid_json() {
+        let result =
+            parse_ffprobe_output("this is not valid json", "movie.mkv".to_string());
+
+        assert!(result.is_err());
+    }
 }
