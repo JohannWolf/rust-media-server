@@ -28,3 +28,12 @@ jobs:
 
       - name: Run tests
         run: cargo test --verbose
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-media-server-linux
+          path: target/release/rust-media-server

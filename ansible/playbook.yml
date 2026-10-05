@@ -1,0 +1,84 @@
+---
+- name: Prepare Rust Media Server
+  hosts: media_servers
+  become: true
+
+  tasks:
+
+    - name: Create rust-media-server group
+      ansible.builtin.group:
+        name: rust-media-server
+        state: present
+
+    - name: Create rust-media-server user
+      ansible.builtin.user:
+        name: rust-media-server
+        group: rust-media-server
+        system: true
+        home: /opt/rust-media-server
+        shell: /usr/sbin/nologin
+        create_home: false
+
+    - name: Create application directory
+      ansible.builtin.file:
+        path: /opt/rust-media-server
+        state: directory
+        owner: rust-media-server
+        group: rust-media-server
+        mode: "0755"
+
+    - name: Create configuration directory
+      ansible.builtin.file:
+        path: /etc/rust-media-server
+        state: directory
+        owner: root
+        group: rust-media-server
+        mode: "0750"
+
+    - name: Deploy environment configuration
+      ansible.builtin.template:
+        src: templates/rust-media-server.env.j2
+        dest: /etc/rust-media-server/rust-media-server.env
+        owner: root
+        group: rust-media-server
+        mode: "0640"
+
+    - name: Create application data directory
+      ansible.builtin.file:
+        path: /var/lib/rust-media-server
+        state: directory
+        owner: rust-media-server
+        group: rust-media-server
+        mode: "0750"
+
+    - name: Deploy application binary
+      ansible.builtin.copy:
+        src: ../target/release/rust-media-server
+        dest: /opt/rust-media-server/rust-media-server
+        owner: rust-media-server
+        group: rust-media-server
+        mode: "0755"
+
+    - name: Install FFmpeg
+      ansible.builtin.apt:
+        name: ffmpeg
+        state: present
+        update_cache: true
+
+    - name: Deploy systemd service
+      ansible.builtin.template:
+        src: templates/rust-media-server.service.j2
+        dest: /etc/systemd/system/rust-media-server.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Rust Media Server
+
+  handlers:
+
+    - name: Restart Rust Media Server
+      ansible.builtin.systemd:
+        name: rust-media-server
+        state: restarted
+        enabled: true
+        daemon_reload: true

@@ -1,0 +1,22 @@
+[Unit]
+Description=Rust Media Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+User=rust-media-server
+Group=rust-media-server
+
+ExecStart=/opt/rust-media-server/rust-media-server
+
+EnvironmentFile=/etc/rust-media-server/rust-media-server.env
+
+WorkingDirectory=/opt/rust-media-server
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
