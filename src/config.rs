@@ -5,6 +5,7 @@ pub struct Config {
     pub database_url: String,
     pub host: String,
     pub port: u16,
+    pub public_host: String,
 }
 
 impl Config {
@@ -22,11 +23,15 @@ impl Config {
             .unwrap_or_else(|_| "8080".to_string())
             .parse::<u16>()?;
 
+        let public_host = env::var("PUBLIC_HOST")
+            .unwrap_or_else(|_| "192.168.1.34".to_string());
+
         Ok(Self {
             media_root,
             database_url,
             host,
             port,
+            public_host,
         })
     }
 }

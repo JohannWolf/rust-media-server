@@ -3,6 +3,10 @@
   hosts: media_servers
   become: true
 
+  vars:
+    release_version: "v0.1.0"
+    github_repo: "JohannWolf/rust-media-server"
+
   tasks:
 
     - name: Create rust-media-server group
@@ -51,13 +55,27 @@
         group: rust-media-server
         mode: "0750"
 
-    - name: Deploy application binary
+    - name: Download release binary
+      ansible.builtin.get_url:
+        url: "https://github.com/{{ github_repo }}/releases/download/{{ release_version }}/rust-media-server"
+        dest: "/tmp/rust-media-server-{{ release_version }}"
+        mode: "0755"
+      register: downloaded_binary
+
+    - name: Install release binary
       ansible.builtin.copy:
-        src: ../target/release/rust-media-server
+        src: "/tmp/rust-media-server-{{ release_version }}"
         dest: /opt/rust-media-server/rust-media-server
+        remote_src: true
         owner: rust-media-server
         group: rust-media-server
         mode: "0755"
+      notify: Restart Rust Media Server
+
+    - name: Remove temporary release binary
+      ansible.builtin.file:
+        path: "/tmp/rust-media-server-{{ release_version }}"
+        state: absent
 
     - name: Install FFmpeg
       ansible.builtin.apt:
@@ -74,8 +92,24 @@
         mode: "0644"
       notify: Restart Rust Media Server
 
-  handlers:
+    - name: Ensure Rust Media Server is running
+      ansible.builtin.systemd:
+        name: rust-media-server
+        state: started
+        enabled: true
+        daemon_reload: true
 
+    - name: Verify media server health
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8080/health"
+        method: GET
+        status_code: 200
+      register: health_check
+      retries: 5
+      delay: 2
+      until: health_check.status == 200
+
+  handlers:
     - name: Restart Rust Media Server
       ansible.builtin.systemd:
         name: rust-media-server

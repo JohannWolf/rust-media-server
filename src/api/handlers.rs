@@ -3,7 +3,7 @@ use axum::{
 };
 use serde::Serialize;
 use sqlx::SqlitePool;
-
+use crate::config::Config;
 use crate::media::{
     get_media_list,
     stream_media,
@@ -62,12 +62,18 @@ pub async fn get_playlist(
 
     let mut playlist = String::from("#EXTM3U\n");
 
+    let config = Config::from_env()
+    .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+
     for item in media {
         playlist.push_str(&format!(
-            "#EXTINF:-1,{}\nhttp://192.168.1.34:8080/api/media/{}/stream\n",
-            item.filename, item.id
-        ));
-    }
+        "#EXTINF:-1,{}\nhttp://{}:{}/api/media/{}/stream\n",
+        item.filename,
+        config.public_host,
+        config.port,
+        item.id
+    ));
+}
 
     Ok((
         [(header::CONTENT_TYPE, "audio/x-mpegurl; charset=utf-8")],
