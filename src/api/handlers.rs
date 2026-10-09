@@ -1,7 +1,5 @@
 use axum::{
-    extract::{Path, State},
-    http::{HeaderMap, StatusCode},
-    response::{Json, Response},
+    extract::{Path, State}, http::{HeaderMap, StatusCode, header}, response::{IntoResponse, Json, Response},
 };
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -53,4 +51,26 @@ pub async fn stream_media_handler(
         .and_then(|value| value.to_str().ok());
 
     stream_media(&pool, id, range).await
+}
+
+pub async fn get_playlist(
+    axum::extract::State(pool): axum::extract::State<sqlx::SqlitePool>,
+) -> Result<impl IntoResponse, axum::http::StatusCode> {
+    let media = get_media_list(&pool)
+        .await
+        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut playlist = String::from("#EXTM3U\n");
+
+    for item in media {
+        playlist.push_str(&format!(
+            "#EXTINF:-1,{}\nhttp://192.168.1.34:8080/api/media/{}/stream\n",
+            item.filename, item.id
+        ));
+    }
+
+    Ok((
+        [(header::CONTENT_TYPE, "audio/x-mpegurl; charset=utf-8")],
+        playlist,
+    ))
 }
