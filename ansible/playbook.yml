@@ -4,7 +4,7 @@
   become: true
 
   vars:
-    release_version: "v0.1.0"
+    release_version: "v0.1.1"
     github_repo: "JohannWolf/rust-media-server"
 
   tasks:

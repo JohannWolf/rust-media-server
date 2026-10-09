@@ -24,7 +24,7 @@ impl Config {
             .parse::<u16>()?;
 
         let public_host = env::var("PUBLIC_HOST")
-            .unwrap_or_else(|_| "192.168.1.34".to_string());
+            .unwrap_or_else(|_| "192.168.1.12".to_string());
 
         Ok(Self {
             media_root,
